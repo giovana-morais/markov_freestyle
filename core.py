@@ -1,17 +1,27 @@
 import json
-import pdb
+import pickle
 import random
 import re
 
 from lyricsgenius import Genius
 from nltk.tokenize import word_tokenize
 
-import secrets
+from genius_secrets import ACCESS_TOKEN
 
-access_token = secrets.ACCESS_TOKEN
+def save_model(model, filename='model.pkl'):
+    with open(filename, 'wb') as f:
+        pickle.dump(model, f)
 
-def get_lyrics(args):
-    genius = Genius(access_token)
+    return
+
+def load_model(filename='model.pkl'):
+    with open(filename, 'rb') as f:
+        model = pickle.load(filename)
+
+    return model
+
+def get_artist_data(args):
+    genius = Genius(ACCESS_TOKEN)
 
     # genius options
     genius.verbose = False
@@ -41,6 +51,9 @@ def get_lyrics(args):
     return genius_files
 
 def save_all_lyrics(json_file_list, lyrics_file):
+    """
+    select only lyrics from all genius data and put everything in the same file
+    """
     lyrics = ""
 
     for json_file in json_file_list:
@@ -55,6 +68,16 @@ def save_all_lyrics(json_file_list, lyrics_file):
 
     return lyrics
 
+def clean_lyrics(lyrics):
+    clean_lyrics = lyrics.lower()
+    clean_lyrics = clean_lyrics.replace('\n', ' ').replace('\r', ' ')
+    clean_lyrics = re.sub(r"[,.\"\'!@#$%^&*(){}?/;`~:<>+=-\\]", "", clean_lyrics)
+    clean_lyrics = clean_lyrics.replace("EmbedShare", "")
+    clean_lyrics = clean_lyrics.replace("URLCopyEmbedCopy", "")
+    clean_lyrics = word_tokenize(clean_lyrics)
+
+    return clean_lyrics
+
 def get_filename(artist_name):
     if isinstance(artist_name, str):
         filename = artist_name.lower().replace(' ', '_') + ".json"
@@ -62,14 +85,6 @@ def get_filename(artist_name):
         filename = '_'.join(artist_name).lower().replace(' ', '_')
 
     return filename
-
-def clean_text(text):
-    clean_text = text.lower()
-    clean_text = clean_text.replace('\n', ' ').replace('\r', ' ')
-    clean_text = re.sub(r"[,.\"\'!@#$%^&*(){}?/;`~:<>+=-\\]", "", clean_text)
-    clean_text = word_tokenize(clean_text)
-
-    return clean_text
 
 def create_markov_model(clean_lyrics, ngrams=2):
     markov_model = {}
@@ -94,10 +109,37 @@ def create_markov_model(clean_lyrics, ngrams=2):
         else:
             markov_model[current_state][next_state] = 1
 
+    # TODO: add heres some if/else statement to check any flags to this function
+    save_model(markov_model)
 
     markov_model = calculate_probabilities(markov_model)
     return markov_model
 
+def update_markov_model(markov_model, new_lyrics, ngrams=2):
+    for i in range(len(new_lyrics)-ngrams-1):
+        current_state, next_state = "", ""
+
+        for j in range(ngrams):
+            current_state += new_lyrics[i+j] + " "
+            next_state += new_lyrics[i+j+ngrams] + " "
+
+        current_state = current_state[:-1]
+        next_state = next_state[:-1]
+
+        # create entry with sum to calculate probabilities of
+        # current_state -> next_state
+        if current_state not in markov_model:
+            markov_model[current_state] = {}
+            markov_model[current_state][next_state] = 1
+        elif next_state in markov_model[current_state]:
+            markov_model[current_state][next_state] += 1
+        else:
+            markov_model[current_state][next_state] = 1
+
+    # TODO: add heres some if/else statement to check any flags to this function
+    save_model(markov_model)
+
+    return markov_model
 
 def calculate_probabilities(markov_model):
     model = markov_model.copy()

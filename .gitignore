@@ -1,5 +1,5 @@
 *.json
 *.pkl
-secrets.py
+genius_secrets.py
 
 __pycache__/
