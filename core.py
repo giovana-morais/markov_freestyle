@@ -1,5 +1,5 @@
 '''
-ajsdhaks
+    Core functions to get Genius' data and create Markov Chain
 '''
 import json
 import pickle
@@ -17,7 +17,7 @@ def save_model(model, filename='model.pkl'):
         pickle.dump(model, file)
 
 def load_model(filename='model.pkl'):
-    ' load pickle model'
+    ' load pickle model as dict'
     model = pickle.load(filename)
 
     return model
@@ -55,7 +55,7 @@ def get_artist_data(args):
 
 def save_all_lyrics(json_file_list, lyrics_file):
     '''
-    select only lyrics from all genius data and put everything in the same file
+    filter all artists genius data, saving only lyrics in a single file.
     '''
     lyrics = ''
 
@@ -73,7 +73,7 @@ def save_all_lyrics(json_file_list, lyrics_file):
 
 def clean_lyrics(lyrics):
     '''
-    standardize lyrics
+    remove garbage from our lyrics and standardize them
     '''
     new_lyrics = lyrics.lower()
     new_lyrics = new_lyrics.replace('\n', ' ').replace('\r', ' ')
@@ -95,18 +95,19 @@ def get_filename(artist_name):
 
     return filename
 
-def create_markov_model(cleaned_lyrics, ngrams=2):
+def accumulate(lyrics, markov_model=None, ngrams=2):
     '''
-    create model from all lyrics
+    cumulative calculations of state transitions
     '''
-    markov_model = {}
+    if markov_model is None:
+        markov_model = {}
 
-    for i in range(len(cleaned_lyrics)-ngrams-1):
+    for i in range(len(lyrics)-ngrams-1):
         current_state, next_state = '', ''
 
         for j in range(ngrams):
-            current_state += cleaned_lyrics[i+j] + ' '
-            next_state += cleaned_lyrics[i+j+ngrams] + ' '
+            current_state += lyrics[i+j] + ' '
+            next_state += lyrics[i+j+ngrams] + ' '
 
         current_state = current_state[:-1]
         next_state = next_state[:-1]
@@ -124,36 +125,20 @@ def create_markov_model(cleaned_lyrics, ngrams=2):
     # TODO: add heres some if/else statement to check any flags to this function
     save_model(markov_model)
 
-    markov_model = calculate_probabilities(markov_model)
     return markov_model
 
-def update_markov_model(markov_model, new_lyrics, ngrams=2):
+def build_markov_model(lyrics, model):
     '''
-    given a model, update its word count and, after that, its transition
-    probabilities
+    build markov model. if model != None, then it just update it using
+    given lyrics
     '''
-    for i in range(len(new_lyrics)-ngrams-1):
-        current_state, next_state = '', ''
 
-        for j in range(ngrams):
-            current_state += new_lyrics[i+j] + ' '
-            next_state += new_lyrics[i+j+ngrams] + ' '
+    if model is not None:
+        cumsum = accumulate(lyrics, markov_model)
+    else:
+        cumsum = accumulate(lyrics)
 
-        current_state = current_state[:-1]
-        next_state = next_state[:-1]
-
-        # create entry with sum to calculate probabilities of
-        # current_state -> next_state
-        if current_state not in markov_model:
-            markov_model[current_state] = {}
-            markov_model[current_state][next_state] = 1
-        elif next_state in markov_model[current_state]:
-            markov_model[current_state][next_state] += 1
-        else:
-            markov_model[current_state][next_state] = 1
-
-    # TODO: add heres some if/else statement to check any flags to this function
-    #save_model(markov_model)
+    markov_model = calculate_probabilities(model)
 
     return markov_model
 
@@ -173,7 +158,7 @@ def calculate_probabilities(markov_model):
 
 def generate_lyrics(markov_model, limit=100, start='o amor'):
     '''
-    create lyrics based on markov model
+    create song lyrics based on markov model
     '''
     curr_state = start
     next_state = None
