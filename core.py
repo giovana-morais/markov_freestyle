@@ -2,6 +2,7 @@
     Core functions to get Genius' data and create Markov Chain
 '''
 import json
+import os
 import pickle
 import random
 import re
@@ -11,8 +12,12 @@ from nltk.tokenize import word_tokenize
 
 from genius_secrets import ACCESS_TOKEN
 
+import pdb
+
 def save_model(model, filename='model.pkl'):
     ' save pickle model'
+    print(f'saving {filename}')
+
     with open(filename, 'wb') as file:
         pickle.dump(model, file)
 
@@ -46,8 +51,14 @@ def get_artist_data(args):
             kwargs['max_songs'] = args.songs
 
         artist = genius.search_artist(**kwargs)
+        folder_name = 'genius_output'
         filename = get_filename(artist_name)
-        artist.save_lyrics(filename)
+
+        artist.save_lyrics(
+            filename = os.path.join(folder_name, filename),
+            extension='json',
+            sanitize=False
+        )
 
         genius_files.append(filename)
 
@@ -60,27 +71,27 @@ def save_all_lyrics(json_file_list, lyrics_file):
     lyrics = ''
 
     for json_file in json_file_list:
-        with open(json_file, 'rb') as filename:
+        with open(f'genius_output/{json_file}.json', 'r') as filename:
             genius_data = json.load(filename)
 
         for _, song in enumerate(genius_data['songs']):
             lyrics += song['lyrics']
 
-    with open(lyrics_file, 'wb') as filename:
+    with open(lyrics_file, 'w') as filename:
         filename.write(lyrics)
 
     return lyrics
 
 def clean_lyrics(lyrics):
     '''
-    remove garbage from our lyrics and standardize them
+    remove garbage lyrics and standardize them
     '''
     new_lyrics = lyrics.lower()
     new_lyrics = new_lyrics.replace('\n', ' ').replace('\r', ' ')
     new_lyrics = re.sub(r'[,.\'\'!@#$%^&*(){}?/;`~:<>+=-\\]', '', new_lyrics)
     new_lyrics = new_lyrics.replace('EmbedShare', '')
     new_lyrics = new_lyrics.replace('URLCopyEmbedCopy', '')
-    new_lyrics = word_tokenize(clean_lyrics)
+    new_lyrics = word_tokenize(new_lyrics)
 
     return new_lyrics
 
@@ -89,7 +100,7 @@ def get_filename(artist_name):
     create filename
     '''
     if isinstance(artist_name, str):
-        filename = artist_name.lower().replace(' ', '_') + '.json'
+        filename = artist_name.lower().replace(' ', '_')
     elif isinstance(artist_name, list):
         filename = '_'.join(artist_name).lower().replace(' ', '_')
 
@@ -122,12 +133,9 @@ def accumulate(lyrics, markov_model=None, ngrams=2):
         else:
             markov_model[current_state][next_state] = 1
 
-    # TODO: add heres some if/else statement to check any flags to this function
-    save_model(markov_model)
-
     return markov_model
 
-def build_markov_model(lyrics, model):
+def build_markov_model(lyrics, model=None):
     '''
     build markov model. if model != None, then it just update it using
     given lyrics
@@ -138,7 +146,7 @@ def build_markov_model(lyrics, model):
     else:
         cumsum = accumulate(lyrics)
 
-    markov_model = calculate_probabilities(model)
+    markov_model = calculate_probabilities(cumsum)
 
     return markov_model
 
@@ -160,7 +168,7 @@ def generate_lyrics(markov_model, limit=100, start='o amor'):
     '''
     create song lyrics based on markov model
     '''
-    curr_state = start
+    curr_state = random.choices([*markov_model])[0]
     next_state = None
     story = ''
     story += curr_state + ' '
