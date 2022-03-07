@@ -87,9 +87,9 @@ def clean_lyrics(lyrics):
     remove garbage lyrics and standardize them
     '''
     new_lyrics = lyrics.replace('\n', ' ').replace('\r', ' ')
-    new_lyrics = re.sub('(\d)*EmbedShare', '', new_lyrics)
+    new_lyrics = re.sub('(\d)*EmbedShare', ' ', new_lyrics)
+    new_lyrics = new_lyrics.replace('URLCopyEmbedCopy', ' ')
     new_lyrics = re.sub(r'[,.\'\'!@#$%^&*(){}?/;`~:<>+=-\\]', '', new_lyrics)
-    new_lyrics = new_lyrics.replace('URLCopyEmbedCopy', '')
     new_lyrics = new_lyrics.lower()
     new_lyrics = word_tokenize(new_lyrics)
 
